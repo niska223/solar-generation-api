@@ -19,9 +19,18 @@ RUN apt-get update \
         unzip \
         libzip-dev \
     && docker-php-ext-install pdo_mysql zip \
-    && a2enmod rewrite headers \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# --- Apache modules + MPM ----------------------------------------------------
+# mod_php is NOT thread-safe, so Apache must run the mpm_prefork MPM. Some
+# base-image / Debian rebuilds (and Railway's build environment) end up with
+# mpm_event enabled next to mpm_prefork, which makes Apache abort at boot with:
+#   AH00534: apache2: Configuration error: More than one MPM loaded.
+# Disable the threaded MPMs first, then enable exactly one: mpm_prefork.
+RUN a2dismod mpm_event 2>/dev/null || true; \
+    a2dismod mpm_worker 2>/dev/null || true; \
+    a2enmod mpm_prefork rewrite headers
 
 # Point Apache at Laravel's public/ directory and allow .htaccess overrides.
 RUN sed -ri -e "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/sites-available/*.conf \

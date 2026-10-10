@@ -65,7 +65,25 @@ php artisan db:seed --force
 # --- Swagger: regenerate the spec so /api/documentation is always current ----
 php artisan l5-swagger:generate
 
-php artisan storage:link || true
+# --- Public storage symlink (safe to re-run) ---------------------------------
+# storage:link errors when public/storage already exists, so only create it the
+# first time. An existing real directory is never deleted or overwritten.
+if [ -L public/storage ]; then
+    echo "[start] public/storage symlink already present; skipping storage:link"
+elif [ -e public/storage ]; then
+    echo "[start] WARNING: public/storage exists but is not a symlink; leaving it untouched" >&2
+else
+    php artisan storage:link
+fi
+
+# --- Enforce exactly one Apache MPM (mpm_prefork) ----------------------------
+# mod_php is not thread-safe, so prefork is required. This is belt-and-braces
+# in case the build image or platform enabled mpm_event/mpm_worker too; Apache
+# would otherwise refuse to start with:
+#   AH00534: apache2: Configuration error: More than one MPM loaded.
+a2dismod mpm_event 2>/dev/null || true
+a2dismod mpm_worker 2>/dev/null || true
+a2enmod mpm_prefork
 
 chown -R www-data:www-data storage bootstrap/cache
 
