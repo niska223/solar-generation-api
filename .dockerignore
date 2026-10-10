@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.vscode
+node_modules
+vendor
+.env
+.env.*
+!.env.production.example
+.phpunit.result.cache
+.phpunit.cache
+tests
+README.md
+DEPLOYMENT.md

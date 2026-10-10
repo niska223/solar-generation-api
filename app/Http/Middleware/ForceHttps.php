@@ -24,6 +24,12 @@ class ForceHttps
 
         URL::forceScheme('https');
 
+        // Liveness/readiness probes must never be redirected; platform health
+        // checkers commonly poll over plain HTTP inside the private network.
+        if ($request->is('api/health') || $request->is('up')) {
+            return $next($request);
+        }
+
         if ($request->secure() || $request->header('X-Forwarded-Proto') === 'https') {
             return $next($request);
         }
