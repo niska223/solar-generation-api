@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Support\Jurisdiction;
 use App\Support\QueryOptions;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,6 +18,39 @@ use Illuminate\Support\Facades\DB;
 
 abstract class ApiController extends Controller
 {
+    /**
+     * Resolve the authenticated SLSEA operator, rejecting devices and guests.
+     */
+    protected function operator(Request $request): User
+    {
+        $principal = $request->user('api');
+
+        if (! $principal instanceof User) {
+            throw ApiException::forbidden('A SLSEA operator account is required to perform this action.');
+        }
+
+        return $principal;
+    }
+
+    /**
+     * Build the jurisdiction guard for the authenticated operator.
+     */
+    protected function jurisdiction(Request $request): Jurisdiction
+    {
+        return new Jurisdiction($this->operator($request));
+    }
+
+    /**
+     * Treat out-of-jurisdiction resources as non-existent so their existence
+     * is never disclosed to the caller.
+     */
+    protected function assertWithinJurisdiction(Jurisdiction $jurisdiction, Model $model): void
+    {
+        if (! $jurisdiction->allows($model)) {
+            throw ApiException::notFound('The requested resource was not found.');
+        }
+    }
+
     protected function assertUnique(string $table, string $column, mixed $value, string $label): void
     {
         if (DB::table($table)->where($column, $value)->exists()) {

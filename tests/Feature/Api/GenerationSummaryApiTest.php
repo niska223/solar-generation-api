@@ -13,7 +13,7 @@ class GenerationSummaryApiTest extends ApiTestCase
     #[Test]
     public function summary_returns_a_complete_and_correct_structure(): void
     {
-        $response = $this->getJson('/api/districts/1/generation-summary?date=2026-10-02');
+        $response = $this->authGet('/api/districts/1/generation-summary?date=2026-10-02');
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -41,7 +41,7 @@ class GenerationSummaryApiTest extends ApiTestCase
     public function summary_current_power_and_today_energy_match_an_independent_recomputation(): void
     {
         $date = '2026-10-02';
-        $response = $this->getJson('/api/districts/1/generation-summary?date='.$date)->assertOk();
+        $response = $this->authGet('/api/districts/1/generation-summary?date='.$date)->assertOk();
 
         $expected = $this->recomputeExpected($date);
 
@@ -63,7 +63,7 @@ class GenerationSummaryApiTest extends ApiTestCase
     #[Test]
     public function default_summary_uses_today_utc_day_boundary(): void
     {
-        $response = $this->getJson('/api/districts/1/generation-summary');
+        $response = $this->authGet('/api/districts/1/generation-summary');
 
         $response->assertOk();
         $this->assertSame(Carbon::now('UTC')->toDateString(), $response->json('data.utc_day'));
@@ -74,7 +74,7 @@ class GenerationSummaryApiTest extends ApiTestCase
     public function no_readings_in_the_day_yield_zero_energy_without_double_counting(): void
     {
         // Seeded data ends 2026-10-07; the 2026-10-09 day has no readings.
-        $response = $this->getJson('/api/districts/1/generation-summary?date=2026-10-09');
+        $response = $this->authGet('/api/districts/1/generation-summary?date=2026-10-09');
 
         $response->assertOk()
             ->assertJsonPath('data.today_generated_energy_kwh', 0);
@@ -85,7 +85,7 @@ class GenerationSummaryApiTest extends ApiTestCase
     #[Test]
     public function summary_returns_400_for_an_invalid_date(): void
     {
-        $this->getJson('/api/districts/1/generation-summary?date=10-02-2026')
+        $this->authGet('/api/districts/1/generation-summary?date=10-02-2026')
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'bad_request');
     }
@@ -93,7 +93,7 @@ class GenerationSummaryApiTest extends ApiTestCase
     #[Test]
     public function summary_returns_404_for_an_unknown_district(): void
     {
-        $this->getJson('/api/districts/999999/generation-summary')
+        $this->authGet('/api/districts/999999/generation-summary')
             ->assertNotFound()
             ->assertJsonPath('error.code', 'not_found');
     }

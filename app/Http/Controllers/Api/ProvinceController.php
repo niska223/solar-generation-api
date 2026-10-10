@@ -17,7 +17,11 @@ class ProvinceController extends ApiController
     {
         $options = $this->options($request, ['id', 'name', 'code', 'created_at'], 'name', 'asc');
 
-        $query = Province::query()->withCount('districts');
+        $jurisdiction = $this->jurisdiction($request);
+
+        $query = Province::query()
+            ->withCount(['districts' => fn ($q) => $jurisdiction->applyToDistricts($q)]);
+        $jurisdiction->applyToProvinces($query);
 
         if ($search = $request->input('q')) {
             $query->where('name', 'like', '%'.$search.'%');
@@ -33,7 +37,10 @@ class ProvinceController extends ApiController
 
     public function show(Request $request, Province $province): JsonResponse
     {
-        $province->loadCount('districts');
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $province);
+
+        $province->loadCount(['districts' => fn ($q) => $jurisdiction->applyToDistricts($q)]);
 
         return $this->single($request, new ProvinceResource($province), $province);
     }
@@ -78,7 +85,11 @@ class ProvinceController extends ApiController
     {
         $options = $this->options($request, ['id', 'name', 'created_at'], 'name', 'asc');
 
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $province);
+
         $query = $province->districts()->getQuery()->with('province')->withCount('gridSubstations');
+        $jurisdiction->applyToDistricts($query);
 
         if ($search = $request->input('q')) {
             $query->where('name', 'like', '%'.$search.'%');

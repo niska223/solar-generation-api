@@ -9,7 +9,7 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function list_installations_is_paginated(): void
     {
-        $this->getJson('/api/installations')
+        $this->authGet('/api/installations')
             ->assertOk()
             ->assertJsonPath('meta.total', 216)
             ->assertJsonCount(15, 'data')
@@ -28,11 +28,11 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function filter_installations_by_grid_substation(): void
     {
-        $this->getJson('/api/grid-substations/SUB-COL-01/installations')
+        $this->authGet('/api/grid-substations/SUB-COL-01/installations')
             ->assertOk()
             ->assertJsonPath('meta.total', 9);
 
-        $response = $this->getJson('/api/installations?grid_substation=SUB-COL-01');
+        $response = $this->authGet('/api/installations?grid_substation=SUB-COL-01');
         $response->assertOk()->assertJsonPath('meta.total', 9);
 
         $this->assertSame(1, count(array_unique($response->json('data.*.grid_substation_id'))));
@@ -41,7 +41,7 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function filter_installations_by_district_and_province(): void
     {
-        $byDistrict = $this->getJson('/api/installations?district=Colombo&per_page=100');
+        $byDistrict = $this->authGet('/api/installations?district=Colombo&per_page=100');
         $byDistrict->assertOk()->assertJsonPath('meta.total', 18);
 
         $this->assertSame(
@@ -49,7 +49,7 @@ class SolarInstallationApiTest extends ApiTestCase
             array_values(array_unique($byDistrict->json('data.*.grid_substation.district.name')))
         );
 
-        $byProvince = $this->getJson('/api/installations?province=WP&per_page=100');
+        $byProvince = $this->authGet('/api/installations?province=WP&per_page=100');
         $byProvince->assertOk()->assertJsonPath('meta.total', 36);
 
         $codes = array_unique($byProvince->json('data.*.grid_substation.district.province.code'));
@@ -59,7 +59,7 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function filter_installations_by_status(): void
     {
-        $active = $this->getJson('/api/installations?status=active&per_page=100');
+        $active = $this->authGet('/api/installations?status=active&per_page=100');
         $active->assertOk();
 
         $this->assertSame(
@@ -71,7 +71,7 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function invalid_status_filter_returns_400(): void
     {
-        $this->getJson('/api/installations?status=decommissioned')
+        $this->authGet('/api/installations?status=decommissioned')
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'bad_request');
     }
@@ -79,7 +79,7 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function show_returns_installation_with_latest_reading(): void
     {
-        $response = $this->getJson('/api/installations/MTR-000001');
+        $response = $this->authGet('/api/installations/MTR-000001');
 
         $response->assertOk()
             ->assertJsonPath('data.id', 1)
@@ -91,7 +91,7 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function show_returns_404_for_missing_installation(): void
     {
-        $this->getJson('/api/installations/does-not-exist')
+        $this->authGet('/api/installations/does-not-exist')
             ->assertNotFound()
             ->assertJsonPath('error.code', 'not_found');
     }
@@ -99,7 +99,7 @@ class SolarInstallationApiTest extends ApiTestCase
     #[Test]
     public function latest_reading_endpoint_returns_the_most_recent_reading(): void
     {
-        $response = $this->getJson('/api/installations/1/latest-reading');
+        $response = $this->authGet('/api/installations/1/latest-reading');
 
         $response->assertOk()
             ->assertJsonPath('data.solar_installation_id', 1)

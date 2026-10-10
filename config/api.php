@@ -4,52 +4,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Administrative API Token
+    | API Authentication
     |--------------------------------------------------------------------------
     |
-    | Administrative write operations (POST/PUT/PATCH/DELETE) are protected by
-    | a single operator token. The token is supplied by the client using either
-    | the "Authorization: Bearer <token>" header or the "X-Api-Key" header.
+    | The API is protected by JWT bearer authentication. Tokens are minted at
+    | /api/auth/operator/login (SLSEA operators) and /api/auth/device/login
+    | (solar devices). See config/jwt.php for signing and lifetime settings.
     |
-    | This is a deliberate deny-by-default placeholder until a full
-    | authentication system (Sanctum/Passport + roles) is implemented in a
-    | later prompt. When no token is configured, EVERY administrative write is
-    | rejected with 401 Unauthorized rather than being exposed unprotected.
+    | There are no static shared tokens or hardcoded credentials anywhere in
+    | the codebase: operator passwords and device secrets are stored only as
+    | password hashes.
     |
     */
-
-    'admin_token' => env('API_ADMIN_TOKEN'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Device Ingestion Tokens
-    |--------------------------------------------------------------------------
-    |
-    | Maps a solar installation to the secret token its meter/logger uses to
-    | report readings. Keys may be the installation "meter_id" (preferred) or
-    | the numeric installation id. Values are the shared secrets.
-    |
-    | The value is expected to be a JSON object, e.g.:
-    |   API_DEVICE_TOKENS={"MTR-000001":"secret-a","MTR-000002":"secret-b"}
-    |
-    | Because the map is empty by default, device ingestion is deny-by-default:
-    | a request without a recognised token for the target installation cannot
-    | create readings. This prevents unauthenticated or cross-installation
-    | ingestion until Prompt 3 adds proper device credentials.
-    |
-    */
-
-    'device_tokens' => (function (): array {
-        $raw = env('API_DEVICE_TOKENS');
-
-        if (blank($raw)) {
-            return [];
-        }
-
-        $decoded = json_decode((string) $raw, true);
-
-        return is_array($decoded) ? $decoded : [];
-    })(),
 
     /*
     |--------------------------------------------------------------------------
@@ -60,6 +26,22 @@ return [
     'pagination' => [
         'default_per_page' => 15,
         'max_per_page' => 100,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rate Limiting
+    |--------------------------------------------------------------------------
+    |
+    | Requests per minute. The authenticated "api" bucket is keyed by the JWT
+    | subject (falling back to the client IP), while the stricter "auth" bucket
+    | protects the credential-issuing endpoints from brute force attempts.
+    |
+    */
+
+    'rate_limits' => [
+        'api' => (int) env('API_RATE_LIMIT', 120),
+        'auth' => (int) env('API_AUTH_RATE_LIMIT', 10),
     ],
 
 ];

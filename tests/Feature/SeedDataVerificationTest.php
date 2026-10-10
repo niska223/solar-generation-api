@@ -7,7 +7,6 @@ use App\Models\GenerationReading;
 use App\Models\GridSubstation;
 use App\Models\Province;
 use App\Models\SolarInstallation;
-use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase;
 use Illuminate\Support\Facades\DB;
 
@@ -182,10 +181,5 @@ class SeedDataVerificationTest extends TestCase
 
         $reading = GenerationReading::query()->first();
         $this->assertSame($reading->solar_installation_id, $reading->solarInstallation->id);
-    }
-
-    public function test_users_table_is_empty_by_design(): void
-    {
-        $this->assertSame(0, User::count());
     }
 }

@@ -9,7 +9,7 @@ class GridSubstationApiTest extends ApiTestCase
     #[Test]
     public function list_grid_substations_with_district_and_province_filters(): void
     {
-        $byDistrict = $this->getJson('/api/grid-substations?district=Colombo&per_page=50');
+        $byDistrict = $this->authGet('/api/grid-substations?district=Colombo&per_page=50');
         $byDistrict->assertOk()->assertJsonPath('meta.total', 2);
 
         $this->assertSame(
@@ -17,7 +17,7 @@ class GridSubstationApiTest extends ApiTestCase
             $byDistrict->json('data.*.district.name')
         );
 
-        $byProvince = $this->getJson('/api/grid-substations?province=WP&per_page=50');
+        $byProvince = $this->authGet('/api/grid-substations?province=WP&per_page=50');
         $byProvince->assertOk()->assertJsonPath('meta.total', 4);
 
         $this->assertSame(
@@ -29,7 +29,7 @@ class GridSubstationApiTest extends ApiTestCase
     #[Test]
     public function show_accepts_substation_code_as_route_key(): void
     {
-        $this->getJson('/api/grid-substations/SUB-COL-01')
+        $this->authGet('/api/grid-substations/SUB-COL-01')
             ->assertOk()
             ->assertJsonPath('data.code', 'SUB-COL-01')
             ->assertJsonPath('data.district.name', 'Colombo')
@@ -39,7 +39,7 @@ class GridSubstationApiTest extends ApiTestCase
     #[Test]
     public function show_returns_404_for_missing_substation(): void
     {
-        $this->getJson('/api/grid-substations/SUB-XXX-99')
+        $this->authGet('/api/grid-substations/SUB-XXX-99')
             ->assertNotFound()
             ->assertJsonPath('error.code', 'not_found');
     }
@@ -47,7 +47,7 @@ class GridSubstationApiTest extends ApiTestCase
     #[Test]
     public function installations_nested_route_is_scoped_to_the_substation(): void
     {
-        $response = $this->getJson('/api/grid-substations/SUB-COL-01/installations?per_page=50');
+        $response = $this->authGet('/api/grid-substations/SUB-COL-01/installations?per_page=50');
 
         $response->assertOk()
             ->assertJsonPath('meta.total', 9);
@@ -60,7 +60,7 @@ class GridSubstationApiTest extends ApiTestCase
     #[Test]
     public function search_by_code_or_name(): void
     {
-        $this->getJson('/api/grid-substations?q=Negombo')
+        $this->authGet('/api/grid-substations?q=Negombo')
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.code', 'SUB-GAM-01');

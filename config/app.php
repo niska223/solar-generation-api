@@ -56,6 +56,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | HTTPS Enforcement
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, generated URLs use the https scheme and insecure requests
+    | are redirected. This should be set to true in production (behind a TLS
+    | terminating proxy or load balancer).
+    |
+    */
+
+    'force_https' => (bool) env('FORCE_HTTPS', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Trusted Proxies
+    |--------------------------------------------------------------------------
+    |
+    | Comma separated list of proxy IPs (or "*") that are trusted to set the
+    | X-Forwarded-* headers. Required for HTTPS detection behind a load
+    | balancer. Defaults to null (no proxies trusted).
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

@@ -25,9 +25,12 @@ class SolarInstallationController extends ApiController
             'asc',
         );
 
+        $jurisdiction = $this->jurisdiction($request);
+
         $query = SolarInstallation::query()
             ->with('gridSubstation.district.province')
             ->withCount('generationReadings');
+        $jurisdiction->applyToInstallations($query);
 
         if ($province = $request->input('province')) {
             $query->whereHas('gridSubstation.district.province', function ($relation) use ($province): void {
@@ -93,6 +96,9 @@ class SolarInstallationController extends ApiController
 
     public function show(Request $request, SolarInstallation $installation): JsonResponse
     {
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $installation);
+
         $installation->load('gridSubstation.district.province', 'latestReading')->loadCount('generationReadings');
 
         return $this->single($request, new SolarInstallationResource($installation), $installation);
@@ -135,6 +141,9 @@ class SolarInstallationController extends ApiController
 
     public function latestReading(Request $request, SolarInstallation $installation): JsonResponse
     {
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $installation);
+
         $reading = $installation->latestReading()->first();
 
         if ($reading === null) {

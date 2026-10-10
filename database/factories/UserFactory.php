@@ -2,12 +2,13 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
+ * @extends Factory<User>
  */
 class UserFactory extends Factory
 {
@@ -39,6 +40,49 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
+        ]);
+    }
+
+    public function national(?int $provinceId = null, ?int $districtId = null): static
+    {
+        return $this->state(fn (): array => [
+            'role' => User::ROLE_NATIONAL,
+            'province_id' => $provinceId,
+            'district_id' => $districtId,
+        ]);
+    }
+
+    public function provincial(int $provinceId): static
+    {
+        return $this->state(fn (): array => [
+            'role' => User::ROLE_PROVINCIAL,
+            'province_id' => $provinceId,
+            'district_id' => null,
+        ]);
+    }
+
+    public function district(int $districtId): static
+    {
+        return $this->state(fn (): array => [
+            'role' => User::ROLE_DISTRICT,
+            'province_id' => null,
+            'district_id' => $districtId,
+        ]);
+    }
+
+    public function administrator(): static
+    {
+        return $this->state(fn (): array => [
+            'role' => User::ROLE_ADMINISTRATOR,
+            'province_id' => null,
+            'district_id' => null,
+        ]);
+    }
+
+    public function inactive(): static
+    {
+        return $this->state(fn (): array => [
+            'is_active' => false,
         ]);
     }
 }

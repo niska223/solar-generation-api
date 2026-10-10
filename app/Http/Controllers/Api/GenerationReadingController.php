@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\ApiException;
 use App\Http\Requests\StoreGenerationReadingRequest;
 use App\Http\Resources\GenerationReadingResource;
+use App\Models\Device;
 use App\Models\GenerationReading;
 use App\Models\SolarInstallation;
 use Illuminate\Database\QueryException;
@@ -16,6 +17,9 @@ class GenerationReadingController extends ApiController
 {
     public function index(Request $request, SolarInstallation $installation): JsonResponse
     {
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $installation);
+
         $options = $this->options(
             $request,
             ['id', 'recorded_at', 'power_kw', 'energy_kwh', 'voltage'],
@@ -50,6 +54,9 @@ class GenerationReadingController extends ApiController
 
     public function show(Request $request, SolarInstallation $installation, GenerationReading $reading): JsonResponse
     {
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $installation);
+
         if ((int) $reading->solar_installation_id !== (int) $installation->id) {
             throw ApiException::notFound('The reading does not belong to the specified installation.');
         }
@@ -59,6 +66,20 @@ class GenerationReadingController extends ApiController
 
     public function store(StoreGenerationReadingRequest $request, SolarInstallation $installation): JsonResponse
     {
+        $principal = $request->user('api');
+
+        if (! $principal instanceof Device) {
+            throw ApiException::forbidden('Only a device attached to this installation may append readings.');
+        }
+
+        if ((int) $principal->solar_installation_id !== (int) $installation->id) {
+            throw ApiException::forbidden(
+                'The device is not authorised to report readings for this installation.'
+            );
+        }
+
+        $principal->forceFill(['last_used_at' => now()])->saveQuietly();
+
         $data = $request->validated();
         $recordedAt = Carbon::parse($data['recorded_at'])->utc();
 

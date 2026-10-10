@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Device;
 use App\Models\SolarInstallation;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -9,24 +10,17 @@ class ReadingApiTest extends ApiTestCase
 {
     private SolarInstallation $installation;
 
-    private string $deviceToken = 'test-device-token-a';
-
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->installation = SolarInstallation::findOrFail(1);
-
-        config(['api.device_tokens' => [
-            'MTR-000001' => $this->deviceToken,
-            'MTR-000002' => 'test-device-token-b',
-        ]]);
     }
 
     #[Test]
     public function readings_index_is_paginated_and_sorted_descending_by_recorded_at_by_default(): void
     {
-        $response = $this->getJson('/api/installations/1/readings?per_page=3');
+        $response = $this->authGet('/api/installations/1/readings?per_page=3');
 
         $response->assertOk()
             ->assertJsonPath('meta.total', 672)
@@ -41,7 +35,7 @@ class ReadingApiTest extends ApiTestCase
     #[Test]
     public function readings_can_be_sorted_ascending(): void
     {
-        $response = $this->getJson('/api/installations/1/readings?per_page=5&sort=recorded_at&direction=asc');
+        $response = $this->authGet('/api/installations/1/readings?per_page=5&sort=recorded_at&direction=asc');
 
         $response->assertOk()
             ->assertJsonPath('data.0.recorded_at', '2026-10-01T00:00:00.000000Z');
@@ -53,7 +47,7 @@ class ReadingApiTest extends ApiTestCase
     #[Test]
     public function readings_time_window_filter_is_scoped_and_returns_the_expected_count(): void
     {
-        $response = $this->getJson(
+        $response = $this->authGet(
             '/api/installations/1/readings?recorded_at_from=2026-10-05T00:00:00Z&recorded_at_to=2026-10-05T23:59:59Z'
         );
 
@@ -68,11 +62,11 @@ class ReadingApiTest extends ApiTestCase
     #[Test]
     public function invalid_time_window_parameters_return_400(): void
     {
-        $this->getJson('/api/installations/1/readings?recorded_at_from=not-a-date')
+        $this->authGet('/api/installations/1/readings?recorded_at_from=not-a-date')
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'bad_request');
 
-        $this->getJson('/api/installations/1/readings?recorded_at_from=2026-10-06T00:00:00Z&recorded_at_to=2026-10-05T00:00:00Z')
+        $this->authGet('/api/installations/1/readings?recorded_at_from=2026-10-06T00:00:00Z&recorded_at_to=2026-10-05T00:00:00Z')
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'bad_request');
     }
@@ -82,7 +76,7 @@ class ReadingApiTest extends ApiTestCase
     {
         $reading = $this->installation->generationReadings()->first();
 
-        $this->getJson('/api/installations/1/readings/'.$reading->id)
+        $this->authGet('/api/installations/1/readings/'.$reading->id)
             ->assertOk()
             ->assertJsonPath('data.id', $reading->id)
             ->assertJsonPath('data.solar_installation_id', 1);
@@ -93,7 +87,7 @@ class ReadingApiTest extends ApiTestCase
     {
         $foreignReading = SolarInstallation::findOrFail(2)->generationReadings()->first();
 
-        $this->getJson('/api/installations/1/readings/'.$foreignReading->id)
+        $this->authGet('/api/installations/1/readings/'.$foreignReading->id)
             ->assertNotFound()
             ->assertJsonPath('error.code', 'not_found');
     }
@@ -101,7 +95,7 @@ class ReadingApiTest extends ApiTestCase
     #[Test]
     public function reading_show_returns_404_for_missing_reading(): void
     {
-        $this->getJson('/api/installations/1/readings/999999')
+        $this->authGet('/api/installations/1/readings/999999')
             ->assertNotFound()
             ->assertJsonPath('error.code', 'not_found');
     }
@@ -124,7 +118,7 @@ class ReadingApiTest extends ApiTestCase
     }
 
     #[Test]
-    public function ingestion_returns_401_when_no_device_token_is_present(): void
+    public function ingestion_returns_401_when_no_credentials_are_present(): void
     {
         $this->postJson('/api/installations/1/readings', $this->validReading())
             ->assertUnauthorized()
@@ -132,39 +126,35 @@ class ReadingApiTest extends ApiTestCase
     }
 
     #[Test]
-    public function ingestion_is_deny_by_default_when_no_tokens_are_configured(): void
+    public function ingestion_rejects_a_token_for_a_deactivated_device(): void
     {
-        config(['api.device_tokens' => []]);
+        $inactive = Device::factory()->forInstallation(3)->inactive()->create();
 
+        $this->postJson('/api/installations/3/readings', $this->validReading(), $this->deviceHeaders($inactive))
+            ->assertUnauthorized()
+            ->assertJsonPath('error.code', 'unauthorized');
+    }
+
+    #[Test]
+    public function ingestion_returns_401_for_an_invalid_token(): void
+    {
         $this->postJson('/api/installations/1/readings', $this->validReading(), [
-            'X-Device-Token' => $this->deviceToken,
+            'Authorization' => 'Bearer not-a-real-jwt',
         ])->assertUnauthorized()
             ->assertJsonPath('error.code', 'unauthorized');
     }
 
     #[Test]
-    public function ingestion_returns_403_for_an_invalid_device_token(): void
-    {
-        $this->postJson('/api/installations/1/readings', $this->validReading(), [
-            'X-Device-Token' => 'wrong-token',
-        ])->assertForbidden()
-            ->assertJsonPath('error.code', 'forbidden');
-    }
-
-    #[Test]
     public function ingestion_returns_403_for_cross_installation_tokens(): void
     {
-        $this->postJson('/api/installations/1/readings', $this->validReading(), [
-            'X-Device-Token' => 'test-device-token-b',
-        ])->assertForbidden()
+        $this->postJson('/api/installations/1/readings', $this->validReading(), $this->deviceHeaders($this->foreignDevice))
+            ->assertForbidden()
             ->assertJsonPath('error.code', 'forbidden');
     }
 
     public function test_ingestion_creates_a_reading_with_201_and_location_header(): void
     {
-        $response = $this->postJson('/api/installations/1/readings', $this->validReading(), [
-            'X-Device-Token' => $this->deviceToken,
-        ]);
+        $response = $this->postJson('/api/installations/1/readings', $this->validReading(), $this->deviceHeaders());
 
         $response->assertCreated()
             ->assertJsonPath('data.solar_installation_id', 1)
@@ -185,16 +175,15 @@ class ReadingApiTest extends ApiTestCase
     {
         $payload = $this->validReading(['recorded_at' => '2026-10-07T23:45:00Z', 'energy_kwh' => 210.0]);
 
-        $this->postJson('/api/installations/1/readings', $payload, [
-            'X-Device-Token' => $this->deviceToken,
-        ])->assertStatus(409)
+        $this->postJson('/api/installations/1/readings', $payload, $this->deviceHeaders())
+            ->assertStatus(409)
             ->assertJsonPath('error.code', 'conflict');
     }
 
     #[Test]
     public function ingestion_returns_422_for_invalid_payloads(): void
     {
-        $headers = ['X-Device-Token' => $this->deviceToken];
+        $headers = $this->deviceHeaders();
 
         $this->postJson('/api/installations/1/readings', $this->validReading(['voltage' => -5]), $headers)
             ->assertUnprocessable()
@@ -212,18 +201,16 @@ class ReadingApiTest extends ApiTestCase
     #[Test]
     public function ingestion_returns_422_when_energy_is_not_monotonic(): void
     {
-        $this->postJson('/api/installations/1/readings', $this->validReading(['energy_kwh' => 100.0]), [
-            'X-Device-Token' => $this->deviceToken,
-        ])->assertUnprocessable()
+        $this->postJson('/api/installations/1/readings', $this->validReading(['energy_kwh' => 100.0]), $this->deviceHeaders())
+            ->assertUnprocessable()
             ->assertJsonPath('error.code', 'validation_failed');
     }
 
     #[Test]
     public function ingestion_returns_422_when_power_exceeds_capacity(): void
     {
-        $this->postJson('/api/installations/1/readings', $this->validReading(['power_kw' => 500.0]), [
-            'X-Device-Token' => $this->deviceToken,
-        ])->assertUnprocessable()
+        $this->postJson('/api/installations/1/readings', $this->validReading(['power_kw' => 500.0]), $this->deviceHeaders())
+            ->assertUnprocessable()
             ->assertJsonPath('error.details.power_kw.0', 'The power_kw field must not exceed the installation capacity of 3.20 kW.');
     }
 
@@ -232,9 +219,8 @@ class ReadingApiTest extends ApiTestCase
     {
         $this->postJson('/api/installations/1/readings', $this->validReading([
             'solar_installation_id' => 2,
-        ]), [
-            'X-Device-Token' => $this->deviceToken,
-        ])->assertUnprocessable()
+        ]), $this->deviceHeaders())
+            ->assertUnprocessable()
             ->assertJsonPath('error.details.solar_installation_id.0', 'The solar installation id field is prohibited.');
     }
 

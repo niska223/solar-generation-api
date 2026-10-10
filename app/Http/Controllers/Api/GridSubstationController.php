@@ -17,7 +17,10 @@ class GridSubstationController extends ApiController
     {
         $options = $this->options($request, ['id', 'name', 'code', 'created_at'], 'name', 'asc');
 
+        $jurisdiction = $this->jurisdiction($request);
+
         $query = GridSubstation::query()->with('district.province')->withCount('solarInstallations');
+        $jurisdiction->applyToGridSubstations($query);
 
         if ($district = $request->input('district')) {
             $query->whereHas('district', function ($relation) use ($district): void {
@@ -60,6 +63,9 @@ class GridSubstationController extends ApiController
 
     public function show(Request $request, GridSubstation $gridSubstation): JsonResponse
     {
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $gridSubstation);
+
         $gridSubstation->load('district.province')->loadCount('solarInstallations');
 
         return $this->single($request, new GridSubstationResource($gridSubstation), $gridSubstation);
@@ -112,6 +118,10 @@ class GridSubstationController extends ApiController
         $query = $gridSubstation->solarInstallations()->getQuery()
             ->with('gridSubstation.district.province')
             ->withCount('generationReadings');
+
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $gridSubstation);
+        $jurisdiction->applyToInstallations($query);
 
         if ($status = $request->input('status')) {
             $query->where('status', $status);

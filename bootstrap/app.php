@@ -1,10 +1,11 @@
 <?php
 
 use App\Exceptions\ApiExceptionRenderer;
-use App\Http\Middleware\AuthorizeDevice;
-use App\Http\Middleware\AuthorizeOperator;
+use App\Http\Middleware\AuthenticateJwt;
+use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\HandleConditionalRequests;
 use App\Http\Middleware\RequireJsonAccept;
+use App\Http\Middleware\RequireRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,8 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'api.operator' => AuthorizeOperator::class,
-            'api.device' => AuthorizeDevice::class,
+            'auth.jwt' => AuthenticateJwt::class,
+            'role' => RequireRole::class,
         ]);
 
         $middleware->api(
@@ -31,6 +32,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 HandleConditionalRequests::class,
             ],
         );
+
+        $middleware->prepend(ForceHttps::class);
+
+        $trustedProxies = env('TRUSTED_PROXIES');
+
+        if (blank($trustedProxies)) {
+            return;
+        }
+
+        if ($trustedProxies === '*' || str_contains((string) $trustedProxies, ',')) {
+            $trustedProxies = array_map('trim', explode(',', (string) $trustedProxies));
+        }
+
+        $middleware->trustProxies(at: $trustedProxies);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(

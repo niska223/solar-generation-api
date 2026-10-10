@@ -13,7 +13,7 @@ class AdminWriteApiTest extends ApiTestCase
         $response = $this->postJson('/api/provinces', [
             'name' => 'ZTest Province',
             'code' => 'ZTP',
-        ], $this->operatorHeaders());
+        ], $this->administratorHeaders());
 
         $response->assertCreated()
             ->assertJsonPath('data.name', 'ZTest Province')
@@ -30,7 +30,7 @@ class AdminWriteApiTest extends ApiTestCase
         $this->postJson('/api/provinces', [
             'name' => 'Western Again',
             'code' => 'WP',
-        ], $this->operatorHeaders())
+        ], $this->administratorHeaders())
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'conflict');
     }
@@ -41,7 +41,7 @@ class AdminWriteApiTest extends ApiTestCase
         $this->postJson('/api/provinces', [
             'name' => '',
             'code' => '',
-        ], $this->operatorHeaders())
+        ], $this->administratorHeaders())
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'validation_failed');
     }
@@ -49,11 +49,11 @@ class AdminWriteApiTest extends ApiTestCase
     #[Test]
     public function administrator_can_update_a_province_with_put_and_patch(): void
     {
-        $this->putJson('/api/provinces/1', ['name' => 'Western Updated'], $this->operatorHeaders())
+        $this->putJson('/api/provinces/1', ['name' => 'Western Updated'], $this->administratorHeaders())
             ->assertOk()
             ->assertJsonPath('data.name', 'Western Updated');
 
-        $this->patchJson('/api/provinces/1', ['code' => 'WPR'], $this->operatorHeaders())
+        $this->patchJson('/api/provinces/1', ['code' => 'WPR'], $this->administratorHeaders())
             ->assertOk()
             ->assertJsonPath('data.code', 'WPR');
     }
@@ -63,7 +63,7 @@ class AdminWriteApiTest extends ApiTestCase
     {
         $province = Province::create(['name' => 'ZTest Delete', 'code' => 'ZTD']);
 
-        $this->deleteJson('/api/provinces/'.$province->id, [], $this->operatorHeaders())
+        $this->deleteJson('/api/provinces/'.$province->id, [], $this->administratorHeaders())
             ->assertNoContent(204);
 
         $this->getJson('/api/provinces/'.$province->id)
@@ -73,7 +73,7 @@ class AdminWriteApiTest extends ApiTestCase
     #[Test]
     public function deleting_a_province_that_has_districts_returns_409(): void
     {
-        $this->deleteJson('/api/provinces/1', [], $this->operatorHeaders())
+        $this->deleteJson('/api/provinces/1', [], $this->administratorHeaders())
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'conflict');
     }
@@ -84,16 +84,16 @@ class AdminWriteApiTest extends ApiTestCase
         $create = $this->postJson('/api/districts', [
             'province_id' => 1,
             'name' => 'ZTest District',
-        ], $this->operatorHeaders());
+        ], $this->administratorHeaders());
 
         $create->assertCreated()->assertJsonPath('data.name', 'ZTest District');
         $id = $create->json('data.id');
 
-        $this->patchJson('/api/districts/'.$id, ['province_id' => 2], $this->operatorHeaders())
+        $this->patchJson('/api/districts/'.$id, ['province_id' => 2], $this->administratorHeaders())
             ->assertOk()
             ->assertJsonPath('data.province_id', 2);
 
-        $this->deleteJson('/api/districts/'.$id, [], $this->operatorHeaders())
+        $this->deleteJson('/api/districts/'.$id, [], $this->administratorHeaders())
             ->assertNoContent(204);
 
         $this->getJson('/api/districts/'.$id)->assertNotFound();
@@ -107,15 +107,15 @@ class AdminWriteApiTest extends ApiTestCase
             'name' => 'ZTest Substation',
             'code' => 'Z-SUB-1',
             'location' => 'ZTest',
-        ], $this->operatorHeaders());
+        ], $this->administratorHeaders());
 
         $create->assertCreated()->assertJsonPath('data.code', 'Z-SUB-1');
         $id = $create->json('data.id');
 
-        $this->patchJson('/api/grid-substations/'.$id, ['name' => 'ZTest Substation Renamed'], $this->operatorHeaders())
+        $this->patchJson('/api/grid-substations/'.$id, ['name' => 'ZTest Substation Renamed'], $this->administratorHeaders())
             ->assertOk();
 
-        $this->deleteJson('/api/grid-substations/'.$id, [], $this->operatorHeaders())
+        $this->deleteJson('/api/grid-substations/'.$id, [], $this->administratorHeaders())
             ->assertNoContent(204);
 
         $this->getJson('/api/grid-substations/'.$id)->assertNotFound();
@@ -130,16 +130,16 @@ class AdminWriteApiTest extends ApiTestCase
             'capacity_kw' => 5.0,
             'address' => 'ZTest',
             'status' => 'active',
-        ], $this->operatorHeaders());
+        ], $this->administratorHeaders());
 
         $create->assertCreated()->assertJsonPath('data.meter_id', 'Z-MTR-999999');
         $id = $create->json('data.id');
 
-        $this->patchJson('/api/installations/'.$id, ['status' => 'maintenance'], $this->operatorHeaders())
+        $this->patchJson('/api/installations/'.$id, ['status' => 'maintenance'], $this->administratorHeaders())
             ->assertOk()
             ->assertJsonPath('data.status', 'maintenance');
 
-        $this->deleteJson('/api/installations/'.$id, [], $this->operatorHeaders())
+        $this->deleteJson('/api/installations/'.$id, [], $this->administratorHeaders())
             ->assertNoContent(204);
 
         $this->getJson('/api/installations/'.$id)->assertNotFound();
@@ -148,7 +148,7 @@ class AdminWriteApiTest extends ApiTestCase
     #[Test]
     public function update_with_invalid_status_returns_422(): void
     {
-        $this->patchJson('/api/installations/1', ['status' => 'broken'], $this->operatorHeaders())
+        $this->patchJson('/api/installations/1', ['status' => 'broken'], $this->administratorHeaders())
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'validation_failed');
     }
@@ -156,7 +156,7 @@ class AdminWriteApiTest extends ApiTestCase
     #[Test]
     public function reading_count_is_available_on_collection_resources(): void
     {
-        $response = $this->getJson('/api/grid-substations/1/installations?per_page=50');
+        $response = $this->authGet('/api/grid-substations/1/installations?per_page=50');
 
         $response->assertOk();
         $this->assertSame(9, count($response->json('data')));

@@ -20,7 +20,10 @@ class DistrictController extends ApiController
     {
         $options = $this->options($request, ['id', 'name', 'created_at'], 'name', 'asc');
 
+        $jurisdiction = $this->jurisdiction($request);
+
         $query = District::query()->with('province')->withCount('gridSubstations');
+        $jurisdiction->applyToDistricts($query);
 
         if ($province = $request->input('province')) {
             $query->whereHas('province', function ($relation) use ($province): void {
@@ -48,6 +51,9 @@ class DistrictController extends ApiController
 
     public function show(Request $request, District $district): JsonResponse
     {
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $district);
+
         $district->load('province')->loadCount('gridSubstations');
 
         return $this->single($request, new DistrictResource($district), $district);
@@ -92,6 +98,9 @@ class DistrictController extends ApiController
     {
         $options = $this->options($request, ['id', 'name', 'code', 'created_at'], 'name', 'asc');
 
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $district);
+
         $query = $district->gridSubstations()->getQuery()
             ->with('district.province')
             ->withCount('solarInstallations');
@@ -113,6 +122,9 @@ class DistrictController extends ApiController
 
     public function generationSummary(Request $request, District $district, GenerationSummaryService $service): JsonResponse
     {
+        $jurisdiction = $this->jurisdiction($request);
+        $this->assertWithinJurisdiction($jurisdiction, $district);
+
         $district->load('province');
 
         $asOf = null;
